@@ -24,54 +24,22 @@ std::variant<TokenError, json> ValidateToken(std::string& token) {
 	return tokenJson;
 }
 
-returnType GetUser(CppHttp::Net::Request req) {
+returnType CreateClassroom(CppHttp::Net::Request req) {
 	soci::session* sql = Database::GetInstance()->GetSession();
 	std::string token = req.m_info.headers["Authorization"];
 
-	auto tokenVariant = ValidateToken(token);
+	auto tokenJson = ValidateToken(token);
 
-	if (std::holds_alternative<TokenError>(tokenVariant)) {
-		TokenError error = std::get<TokenError>(tokenVariant);
+	if (std::holds_alternative<TokenError>(tokenJson)) {
+		auto error = std::get<TokenError>(tokenJson);
 		return { error.type, error.message, {} };
 	}
 
-	json tokenJson = std::get<json>(tokenVariant);
-	std::string id = tokenJson["id"];
+	auto tokenPayload = std::get<json>(tokenJson);
+	std::string id = tokenPayload["id"];
 
 	User user;
-	*sql << "SELECT * FROM users WHERE id = :id", soci::use(id), soci::into(user);
-	
-	if (user.email.empty()) {
-		return { CppHttp::Net::ResponseType::NOT_FOUND, "User not found", {} };
-	}
-
-	json response = {
-		{ "id", user.id },
-		{ "email", user.email },
-		{ "first_name", user.firstName },
-		{ "last_name", user.lastName },
-		{ "role", user.role }
-	};
-
-	return { CppHttp::Net::ResponseType::JSON, response.dump(4), {} };
-}
-
-returnType UpdateUser(CppHttp::Net::Request req) {
-	soci::session* sql = Database::GetInstance()->GetSession();
-	std::string token = req.m_info.headers["Authorization"];
-
-	auto tokenVariant = ValidateToken(token);
-
-	if (std::holds_alternative<TokenError>(tokenVariant)) {
-		TokenError error = std::get<TokenError>(tokenVariant);
-		return { error.type, error.message, {} };
-	}
-
-	json tokenJson = std::get<json>(tokenVariant);
-	std::string id = tokenJson["id"];
-
-	User user;
-	*sql << "SELECT * FROM users WHERE id = :id", soci::use(id), soci::into(user);
+	*sql << "SELECT * FROM users WHERE id = :id" , soci::use(id), soci::into(user);
 
 	if (user.email.empty()) {
 		return { CppHttp::Net::ResponseType::NOT_FOUND, "User not found", {} };
@@ -86,69 +54,39 @@ returnType UpdateUser(CppHttp::Net::Request req) {
 		return { CppHttp::Net::ResponseType::BAD_REQUEST, e.what(), {} };
 	}
 
-	if (body.contains("email")) {
-		std::string email = body["email"];
+	std::string name = body["name"];
 
-		if (email.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@.") != std::string::npos) {
-			return { CppHttp::Net::ResponseType::BAD_REQUEST, "Invalid email", {} };
-		}
-
-		if (email.find_first_of("@") == std::string::npos) {
-			return { CppHttp::Net::ResponseType::BAD_REQUEST, "Invalid email", {} };
-		}
-
-		if (email.find_first_of(".") == std::string::npos) {
-			return { CppHttp::Net::ResponseType::BAD_REQUEST, "Invalid email", {} };
-		}
-
-		user.email = email;
-	}
-	if (body.contains("first_name")) {
-		user.firstName = body["first_name"];
-	}
-	if (body.contains("last_name")) {
-		user.lastName = body["last_name"];
-	}
-	if (body.contains("password")) {
-		std::string password = body["password"];
-
-		if (password.length() < 8) {
-			return { CppHttp::Net::ResponseType::BAD_REQUEST, "Password must be at least 8 characters", {} };
-		}
-
-		if (password.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#$%^&*") != std::string::npos) {
-			return { CppHttp::Net::ResponseType::BAD_REQUEST, "Password must only contain alphanumeric characters", {} };
-		}
-
-		user.password = Hash(password + user.salt);
+	if (name.length() > 120) {
+		return { CppHttp::Net::ResponseType::BAD_REQUEST, "Name too long", {} };
 	}
 
-	*sql << "UPDATE users SET email = :email, first_name = :first_name, last_name = :last_name, password = :password WHERE id = :id", soci::use(user.email), soci::use(user.firstName), soci::use(user.lastName), soci::use(user.password), soci::use(user.id);
+	Classroom classroom;
+	*sql << "INSERT INTO classrooms (name, owner_id) VALUES (:name, :owner_id) RETURNING *", soci::use(name), soci::use(user.id), soci::into(classroom);
+
+	*sql << "INSERT INTO classroom_users (classroom_id, user_id) VALUES (:classroom_id, :user_id)", soci::use(classroom.id), soci::use(user.id);
 
 	json response = {
-		{ "id", user.id },
-		{ "email", user.email },
-		{ "first_name", user.firstName },
-		{ "last_name", user.lastName },
-		{ "role", user.role }
+		{ "id", classroom.id },
+		{ "name", classroom.name },
+		{ "owner_id", classroom.ownerId }
 	};
 
 	return { CppHttp::Net::ResponseType::JSON, response.dump(4), {} };
 }
 
-returnType DeleteUser(CppHttp::Net::Request req) {
+returnType GetUserClassrooms(CppHttp::Net::Request req) {
 	soci::session* sql = Database::GetInstance()->GetSession();
 	std::string token = req.m_info.headers["Authorization"];
 
-	auto tokenVariant = ValidateToken(token);
+	auto tokenJson = ValidateToken(token);
 
-	if (std::holds_alternative<TokenError>(tokenVariant)) {
-		TokenError error = std::get<TokenError>(tokenVariant);
+	if (std::holds_alternative<TokenError>(tokenJson)) {
+		auto error = std::get<TokenError>(tokenJson);
 		return { error.type, error.message, {} };
 	}
 
-	json tokenJson = std::get<json>(tokenVariant);
-	std::string id = tokenJson["id"];
+	auto tokenPayload = std::get<json>(tokenJson);
+	std::string id = tokenPayload["id"];
 
 	User user;
 	*sql << "SELECT * FROM users WHERE id = :id", soci::use(id), soci::into(user);
@@ -157,15 +95,22 @@ returnType DeleteUser(CppHttp::Net::Request req) {
 		return { CppHttp::Net::ResponseType::NOT_FOUND, "User not found", {} };
 	}
 
-	*sql << "DELETE FROM users WHERE id = :id", soci::use(user.id);
+	std::vector<Classroom> classrooms;
+	soci::rowset<Classroom> rs = (sql->prepare << "SELECT DISTINCT classrooms.* FROM classrooms LEFT JOIN classroom_users ON classrooms.id=classroom_users.classroom_id WHERE classroom_users.user_id=:user_id", soci::use(user.id));
 
-	json response = {
-		{ "id", user.id },
-		{ "email", user.email },
-		{ "first_name", user.firstName },
-		{ "last_name", user.lastName },
-		{ "role", user.role }
-	};
+	std::move(rs.begin(), rs.end(), std::back_inserter(classrooms));
 
-	return { CppHttp::Net::ResponseType::JSON, response.dump(4), {}};
+	json response = json::array();
+
+	for (auto& classroom : classrooms) {
+		json classroomJson = {
+			{ "id", classroom.id },
+			{ "name", classroom.name },
+			{ "owner_id", classroom.ownerId }
+		};
+
+		response.push_back(classroomJson);
+	}
+
+	return { CppHttp::Net::ResponseType::JSON, response.dump(4), {} };
 }

@@ -3,7 +3,6 @@
 #include "CppHttp.hpp"
 #include "database.hpp"
 #include "jwt-cpp/traits/nlohmann-json/traits.h"
-#include "hash.hpp"
 #include <iostream>
 #include <string>
 #include <tuple>
@@ -25,6 +24,12 @@ struct User {
 	std::string firstName;
 	std::string lastName;
     std::string role;
+};
+
+struct Classroom {
+    int id;
+    std::string name;
+    int ownerId;
 };
 
 struct TokenError {
@@ -62,12 +67,31 @@ namespace soci
             ind = i_ok;
         }
     };
+
+    template<>
+    struct type_conversion<Classroom>
+    {
+		typedef values base_type;
+
+        static void from_base(values const& v, indicator /* ind */, Classroom& c)
+        {
+			c.id = v.get<int>("id", 0);
+			c.name = v.get<std::string>("name");
+			c.ownerId = v.get<int>("owner_id");
+		}
+
+        static void to_base(const Classroom& c, values& v, indicator& ind)
+        {
+			v.set("id", c.id);
+			v.set("name", c.name);
+			v.set("owner_id", c.ownerId);
+			ind = i_ok;
+		}
+	};
 }
 
 std::variant<TokenError, json> ValidateToken(std::string& token);
 
-returnType GetUser(CppHttp::Net::Request req);
+returnType CreateClassroom(CppHttp::Net::Request req);
 
-returnType UpdateUser(CppHttp::Net::Request req);
-
-returnType DeleteUser(CppHttp::Net::Request req);
+returnType GetUserClassrooms(CppHttp::Net::Request req);
