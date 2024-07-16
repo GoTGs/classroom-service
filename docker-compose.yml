@@ -1,9 +1,9 @@
 services:
   user:
     build: .
-    command: sh -c "stdbuf -oL ./build/user"
+    command: sh -c "stdbuf -oL ./build/classroom"
     env_file:
       - .env
     # command: sh -c "ls /usr/include/openssl"
     ports:
-      - "8001:8001"
+      - "8002:8002"

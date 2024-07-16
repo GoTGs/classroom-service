@@ -40,7 +40,7 @@ returnType GetUser(CppHttp::Net::Request req) {
 
 	User user;
 	*sql << "SELECT * FROM users WHERE id = :id", soci::use(id), soci::into(user);
-
+	
 	if (user.email.empty()) {
 		return { CppHttp::Net::ResponseType::NOT_FOUND, "User not found", {} };
 	}

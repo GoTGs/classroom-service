@@ -19,4 +19,4 @@ RUN cp -r build/* /app
 
 EXPOSE 8001
 
-CMD [ "stdbuf", "-oL", "./build/user" ]
+CMD [ "stdbuf", "-oL", "./build/classroom" ]
