@@ -1,5 +1,5 @@
 services:
-  user:
+  classroom:
     build: .
     command: sh -c "stdbuf -oL ./build/classroom"
     env_file:
