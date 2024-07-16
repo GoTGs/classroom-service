@@ -20,6 +20,6 @@ RUN cp -r build/* /app
 
 FROM builder AS production
 
-EXPOSE 8001
+EXPOSE 8002
 
 CMD [ "stdbuf", "-oL", "./build/classroom" ]
