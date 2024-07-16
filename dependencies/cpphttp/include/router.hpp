@@ -8,6 +8,7 @@
 #include <string>
 #include <optional>
 #include <unordered_map>
+#include <syncstream>
 #include "event.hpp"
 #include "request.hpp"
 #include "responsetype.hpp"
@@ -52,29 +53,106 @@ namespace CppHttp {
 					std::string method = req.m_info.method;
 
 					std::vector<returnType> responses;
-					returnType response = std::make_tuple(ResponseType::OK, "", std::optional<std::vector<std::string>>(false));
-					try {
-						if (method == "GET") {
-							responses = this->get[req.m_info.route].Invoke(req);
-						}
-						else if (method == "POST") {
-							responses = this->post[req.m_info.route].Invoke(req);
-						}
-						else if (method == "PUT") {
-							responses = this->put[req.m_info.route].Invoke(req);
-						}
-						else if (method == "DELETE") {
-							responses = this->del[req.m_info.route].Invoke(req);
-						}
-					}
-					catch (std::exception& e) {
-						responses = { std::make_tuple(ResponseType::INTERNAL_ERROR, e.what(), std::optional<std::vector<std::string>>(false)) };
-					}
+					returnType response = { ResponseType::OK, "", {} };
 
-					//std::cout << "\033[1;34m[*] Responses size: " << responses.size() << "\033[0m\n";
-					for (const auto& res : responses) {
-						response = res;
+					if (this->get.contains(req.m_info.route) || this->post.contains(req.m_info.route) || this->put.contains(req.m_info.route) || this->del.contains(req.m_info.route)) {
+						try {
+							if (method == "GET") {
+								responses = this->get[req.m_info.route].Invoke(req);
+							}
+							else if (method == "POST") {
+								responses = this->post[req.m_info.route].Invoke(req);
+							}
+							else if (method == "PUT") {
+								responses = this->put[req.m_info.route].Invoke(req);
+							}
+							else if (method == "DELETE") {
+								responses = this->del[req.m_info.route].Invoke(req);
+							}
+						}
+						catch (std::exception& e) {
+							responses = { { ResponseType::INTERNAL_ERROR, e.what(), {} } };
+						}
+
+						for (auto& res : responses) {
+							response = res;
+						}
 					}
+					else {
+						for (auto [path, pair] : paramRoutes) {
+							if (pair.second != method) {
+								continue;
+							}
+
+							// split path by '/'
+							std::vector<std::string> pathSplit = CppHttp::Utils::Split(path, '/');
+
+							// find index of element in pathSplit that begins with '{'
+							auto it = std::find_if(pathSplit.begin(), pathSplit.end(), [](std::string& s) {
+								return s[0] == '{';
+							});
+
+							// if element is found
+							if (it != pathSplit.end()) {
+								// get index of element
+								int index = std::distance(pathSplit.begin(), it);
+
+								// split route by '/'
+								std::vector<std::string> routeSplit = CppHttp::Utils::Split(req.m_info.route, '/');
+
+								// if routeSplit size is not equal to pathSplit size, continue
+								if (routeSplit.size() != pathSplit.size()) {
+									continue;
+								}
+
+								// check if left side of path (before '{') is equal to left side of route (before the potential parameter value)
+								bool leftSideMatch = true;
+
+								for (int i = 0; i < index; ++i) {
+									if (pathSplit[i] != routeSplit[i]) {
+										leftSideMatch = false;
+										break;
+									}
+								}
+
+								// check if right side of path (after '}') is equal to right side of route (after the potential parameter value)
+								bool rightSideMatch = true;
+
+								for (int i = index + 1; i < pathSplit.size(); ++i) {
+									if (pathSplit[i] != routeSplit[i]) {
+										rightSideMatch = false;
+										break;
+									}
+								}
+
+								if (!leftSideMatch || !rightSideMatch) {
+									continue;
+								}
+
+								// get parameter value
+								std::string parameterValue = routeSplit[index];
+
+								// get parameter name (have to remove '{' and '}')
+								std::string parameterName = pathSplit[index].substr(1, pathSplit[index].size() - 2);
+
+								// add parameter and value to request parameters map
+								req.m_info.parameters[parameterName] = parameterValue;
+
+								// invoke callback
+								try {
+									responses = pair.first.Invoke(req);
+								}
+								catch (std::exception& e) {
+									responses = { { ResponseType::INTERNAL_ERROR, e.what(), {} } };
+								}
+
+								for (auto& res : responses) {
+									response = res;
+								}
+							}
+						}
+					}
+					
 					this->Respond(req, response);
 				}
 
@@ -83,17 +161,23 @@ namespace CppHttp {
 						c = toupper(c);
 					}
 
-					if (method == "GET") {
-						this->get[path].Attach(callback);
+					if (path.find('{') != std::string::npos) {
+						this->paramRoutes[path].first.Attach(callback);
+						this->paramRoutes[path].second = method;
 					}
-					else if (method == "POST") {
-						this->post[path].Attach(callback);
-					}
-					else if (method == "PUT") {
-						this->put[path].Attach(callback);
-					}
-					else if (method == "DELETE") {
-						this->del[path].Attach(callback);
+					else {
+						if (method == "GET") {
+							this->get[path].Attach(callback);
+						}
+						else if (method == "POST") {
+							this->post[path].Attach(callback);
+						}
+						else if (method == "PUT") {
+							this->put[path].Attach(callback);
+						}
+						else if (method == "DELETE") {
+							this->del[path].Attach(callback);
+						}
 					}
 				}
 
@@ -102,6 +186,8 @@ namespace CppHttp {
 				std::unordered_map<std::string, Event<returnType, CppHttp::Net::Request&>> post;
 				std::unordered_map<std::string, Event<returnType, CppHttp::Net::Request&>> put;
 				std::unordered_map<std::string, Event<returnType, CppHttp::Net::Request&>> del;
+
+				std::unordered_map<std::string, std::pair<Event<returnType, CppHttp::Net::Request&>, std::string>> paramRoutes;
 
 				void Respond(Request& req, returnType response) {
 					ResponseType type = std::get<0>(response);
@@ -206,8 +292,6 @@ namespace CppHttp {
 						header += j.dump();
 
 					}
-
-					//std::cout << header << '\n';
 
 					int bytesSent = 0;
 					int totalBytesSent = 0;

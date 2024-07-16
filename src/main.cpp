@@ -1,7 +1,7 @@
 #include "../include/endpoints.hpp"
 #include <thread>
 
-int main(int argc, char** argv) {
+int main() {
 	CppHttp::Net::Router router;
 	CppHttp::Net::TcpListener server;
 	server.CreateSocket();
@@ -16,6 +16,7 @@ int main(int argc, char** argv) {
 
 	router.AddRoute("POST", "/classroom/create", CreateClassroom);
 	router.AddRoute("GET", "/classroom/user/get", GetUserClassrooms);
+	router.AddRoute("GET", "/classroom/{id}/get", GetClassroom);
 
 	server.Listen("0.0.0.0", 8002, std::thread::hardware_concurrency());
 

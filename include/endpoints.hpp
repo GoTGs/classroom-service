@@ -95,3 +95,5 @@ std::variant<TokenError, json> ValidateToken(std::string& token);
 returnType CreateClassroom(CppHttp::Net::Request req);
 
 returnType GetUserClassrooms(CppHttp::Net::Request req);
+
+returnType GetClassroom(CppHttp::Net::Request req);

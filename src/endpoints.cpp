@@ -114,3 +114,44 @@ returnType GetUserClassrooms(CppHttp::Net::Request req) {
 
 	return { CppHttp::Net::ResponseType::JSON, response.dump(4), {} };
 }
+
+returnType GetClassroom(CppHttp::Net::Request req) {
+	if (req.m_info.parameters["id"].empty()) {
+		return { CppHttp::Net::ResponseType::BAD_REQUEST, "Missing classroom id in path parameters", {} };
+	}
+
+	soci::session* sql = Database::GetInstance()->GetSession();
+	std::string token = req.m_info.headers["Authorization"];
+
+	auto tokenJson = ValidateToken(token);
+
+	if (std::holds_alternative<TokenError>(tokenJson)) {
+		auto error = std::get<TokenError>(tokenJson);
+		return { error.type, error.message, {} };
+	}
+
+	auto tokenPayload = std::get<json>(tokenJson);
+	std::string id = tokenPayload["id"];
+
+	User user;
+	*sql << "SELECT * FROM users WHERE id = :id", soci::use(id), soci::into(user);
+
+	if (user.email.empty()) {
+		return { CppHttp::Net::ResponseType::NOT_FOUND, "User not found", {} };
+	}
+
+	Classroom classroom;
+	*sql << "SELECT DISTINCT classrooms.* FROM classrooms LEFT JOIN classroom_users ON classrooms.id=classroom_users.classroom_id WHERE classroom_users.user_id=:user_id AND classroom_users.classroom_id=:classroom_id LIMIT 1", soci::use(id), soci::use(req.m_info.parameters["id"]), soci::into(classroom);
+
+	if (classroom.name.empty()) {
+		return { CppHttp::Net::ResponseType::NOT_FOUND, "Classroom not found", {} };
+	}
+
+	json response = {
+		{ "id", classroom.id },
+		{ "name", classroom.name },
+		{ "owner_id", classroom.ownerId }
+	};
+
+	return { CppHttp::Net::ResponseType::JSON, response.dump(8), {} };
+}
