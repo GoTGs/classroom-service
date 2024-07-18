@@ -15,6 +15,7 @@ int main() {
 	server.SetOnReceive(onReceive);
 
 	router.AddRoute("POST", "/classroom/create", CreateClassroom);
+	router.AddRoute("POST", "/classroom/{id}/add", AddUserToClassroom);
 	router.AddRoute("GET", "/classroom/user/get", GetUserClassrooms);
 	router.AddRoute("GET", "/classroom/{id}/get", GetClassroom);
 
