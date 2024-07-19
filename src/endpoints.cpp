@@ -101,14 +101,23 @@ returnType AddUserToClassroom(CppHttp::Net::Request req) {
 
 	*sql << "SELECT * FROM users WHERE id = :id", soci::use(id), soci::into(user);
 
+	Classroom classroom;
+
+	*sql << "SELECT * FROM classrooms WHERE id = :id", soci::use(req.m_info.parameters["id"]), soci::into(classroom);
+
+	
 	if (user.email.empty()) {
 		return { CppHttp::Net::ResponseType::NOT_AUTHORIZED, "User not found", {} };
 	}
 
 	std::transform(user.role.begin(), user.role.end(), user.role.begin(), ::toupper);
 
-	if (user.role != "ADMIN") {
+	if (user.role != "ADMIN" || classroom.ownerId != std::stoi(id)) {
 		return { CppHttp::Net::ResponseType::FORBIDDEN, "You do not have permission to access this resource", {} };
+	}
+	
+	if (classroom.name.empty()) {
+		return { CppHttp::Net::ResponseType::NOT_FOUND, "Classroom not found", {} };
 	}
 
 	json body;
@@ -129,12 +138,10 @@ returnType AddUserToClassroom(CppHttp::Net::Request req) {
 		return { CppHttp::Net::ResponseType::NOT_FOUND, "User not found", {} };
 	}
 
-	Classroom classroom;
+	*sql << "SELECT * FROM classroom_users WHERE classroom_id = :classroom_id AND user_id = :user_id", soci::use(classroom.id), soci::use(user.id);
 
-	*sql << "SELECT * FROM classrooms WHERE id = :id", soci::use(req.m_info.parameters["id"]), soci::into(classroom);
-
-	if (classroom.name.empty()) {
-		return { CppHttp::Net::ResponseType::NOT_FOUND, "Classroom not found", {} };
+	if (sql->got_data()) {
+		return { CppHttp::Net::ResponseType::BAD_REQUEST, "User already in classroom", {} };
 	}
 
 	*sql << "INSERT INTO classroom_users (classroom_id, user_id) VALUES (:classroom_id, :user_id)", soci::use(classroom.id), soci::use(user.id);
@@ -221,5 +228,5 @@ returnType GetClassroom(CppHttp::Net::Request req) {
 		{ "owner_id", classroom.ownerId }
 	};
 
-	return { CppHttp::Net::ResponseType::JSON, response.dump(8), {} };
+	return { CppHttp::Net::ResponseType::JSON, response.dump(4), {} };
 }

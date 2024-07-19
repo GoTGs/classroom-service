@@ -32,6 +32,12 @@ struct Classroom {
     int ownerId;
 };
 
+struct ClassroomUser {
+    int id;
+    int classroomId;
+    int userId;
+};
+
 struct TokenError {
     CppHttp::Net::ResponseType type;
     std::string message;
