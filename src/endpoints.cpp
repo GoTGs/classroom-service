@@ -180,7 +180,7 @@ returnType GetUserClassrooms(CppHttp::Net::Request req) {
 	User user;
 	{
 		std::lock_guard<std::mutex> lock(Database::dbMutex);
-		*sql << "SELECT * FROM users WHERE id = :id", soci::use(id), soci::into(user);
+		*sql << "SELECT * FROM users WHERE id = :id", soci::use(std::stoi(id)), soci::into(user);
 	}
 
 	if (user.email.empty()) {
@@ -188,11 +188,11 @@ returnType GetUserClassrooms(CppHttp::Net::Request req) {
 	}
 
 	std::vector<Classroom> classrooms;
-	Database::dbMutex.lock();
-	soci::rowset<Classroom> rs = (sql->prepare << "SELECT DISTINCT classrooms.* FROM classrooms LEFT JOIN classroom_users ON classrooms.id=classroom_users.classroom_id WHERE classroom_users.user_id=:user_id", soci::use(user.id));
-	Database::dbMutex.unlock();
-
-	std::move(rs.begin(), rs.end(), std::back_inserter(classrooms));
+	{
+		std::lock_guard<std::mutex> lock(Database::dbMutex);
+		soci::rowset<Classroom> rs = (sql->prepare << "SELECT DISTINCT classrooms.* FROM classrooms LEFT JOIN classroom_users ON classrooms.id=classroom_users.classroom_id WHERE classroom_users.user_id=:user_id", soci::use(user.id));
+		std::move(rs.begin(), rs.end(), std::back_inserter(classrooms));
+	}
 
 	json response = json::array();
 
@@ -290,13 +290,16 @@ returnType GetClassroomMembers(CppHttp::Net::Request req) {
 		return { CppHttp::Net::ResponseType::FORBIDDEN, "You do not have permission to access this resource", {} };
 	}
 
-	Database::dbMutex.lock();
-	soci::rowset<User> rs = (sql->prepare << "SELECT users.* FROM users LEFT JOIN classroom_users ON users.id=classroom_users.user_id WHERE classroom_users.classroom_id=:classroom_id", soci::use(req.m_info.parameters["id"]));
-	Database::dbMutex.unlock();
+	std::vector<User> members;
+	{
+		std::lock_guard<std::mutex> lock(Database::dbMutex);
+		soci::rowset<User> rs = (sql->prepare << "SELECT users.* FROM users LEFT JOIN classroom_users ON users.id=classroom_users.user_id WHERE classroom_users.classroom_id=:classroom_id", soci::use(req.m_info.parameters["id"]));
+		std::move(rs.begin(), rs.end(), std::back_inserter(members));
+	}
 
 	json response = json::array();
 
-	for (auto& member : rs) {
+	for (auto& member : members) {
 		json memberJson = {
 			{ "id", member.id },
 			{ "email", member.email },

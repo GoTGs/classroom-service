@@ -2,11 +2,10 @@
 #include <thread>
 
 int main() {
+	Database::GetInstance();
 	CppHttp::Net::Router router;
 	CppHttp::Net::TcpListener server;
 	server.CreateSocket();
-
-	int requestCount = 0;
 
 	auto onReceive = [&](CppHttp::Net::Request req) {
 		router.Handle(req);
