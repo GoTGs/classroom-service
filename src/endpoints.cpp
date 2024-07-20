@@ -39,7 +39,10 @@ returnType CreateClassroom(CppHttp::Net::Request req) {
 	std::string id = tokenPayload["id"];
 
 	User user;
-	*sql << "SELECT * FROM users WHERE id = :id" , soci::use(id), soci::into(user);
+	{
+		std::lock_guard<std::mutex> lock(Database::dbMutex);
+		*sql << "SELECT * FROM users WHERE id = :id" , soci::use(id), soci::into(user);
+	}
 
 	if (user.email.empty()) {
 		return { CppHttp::Net::ResponseType::NOT_FOUND, "User not found", {} };
@@ -67,8 +70,11 @@ returnType CreateClassroom(CppHttp::Net::Request req) {
 	}
 
 	Classroom classroom;
-	*sql << "INSERT INTO classrooms (name, owner_id) VALUES (:name, :owner_id) RETURNING *", soci::use(name), soci::use(user.id), soci::into(classroom);
-	*sql << "INSERT INTO classroom_users (classroom_id, user_id) VALUES (:classroom_id, :user_id)", soci::use(classroom.id), soci::use(user.id);
+	{
+		std::lock_guard<std::mutex> lock(Database::dbMutex);
+		*sql << "INSERT INTO classrooms (name, owner_id) VALUES (:name, :owner_id) RETURNING *", soci::use(name), soci::use(user.id), soci::into(classroom);
+		*sql << "INSERT INTO classroom_users (classroom_id, user_id) VALUES (:classroom_id, :user_id)", soci::use(classroom.id), soci::use(user.id);
+	}
 
 	json response = {
 		{ "id", classroom.id },
@@ -98,12 +104,16 @@ returnType AddUserToClassroom(CppHttp::Net::Request req) {
 	std::string id = tokenPayload["id"];
 
 	User user;
-
-	*sql << "SELECT * FROM users WHERE id = :id", soci::use(id), soci::into(user);
+	{
+		std::lock_guard<std::mutex> lock(Database::dbMutex);
+		*sql << "SELECT * FROM users WHERE id = :id", soci::use(id), soci::into(user);
+	}
 
 	Classroom classroom;
-
-	*sql << "SELECT * FROM classrooms WHERE id = :id", soci::use(req.m_info.parameters["id"]), soci::into(classroom);
+	{
+		std::lock_guard<std::mutex> lock(Database::dbMutex);
+		*sql << "SELECT * FROM classrooms WHERE id = :id", soci::use(req.m_info.parameters["id"]), soci::into(classroom);
+	}
 
 	
 	if (user.email.empty()) {
@@ -132,19 +142,23 @@ returnType AddUserToClassroom(CppHttp::Net::Request req) {
 
 	user = std::move(User());
 
-	*sql << "SELECT * FROM users WHERE email = :email", soci::use(email), soci::into(user);
+	{
+		std::lock_guard<std::mutex> lock(Database::dbMutex);
+		*sql << "SELECT * FROM users WHERE email = :email", soci::use(email), soci::into(user);
+	}
 
 	if (user.email.empty()) {
 		return { CppHttp::Net::ResponseType::NOT_FOUND, "User not found", {} };
 	}
 
-	*sql << "SELECT * FROM classroom_users WHERE classroom_id = :classroom_id AND user_id = :user_id", soci::use(classroom.id), soci::use(user.id);
-
-	if (sql->got_data()) {
-		return { CppHttp::Net::ResponseType::BAD_REQUEST, "User already in classroom", {} };
+	{
+		std::lock_guard<std::mutex> lock(Database::dbMutex);
+		*sql << "SELECT * FROM classroom_users WHERE classroom_id = :classroom_id AND user_id = :user_id", soci::use(classroom.id), soci::use(user.id);
+		if (sql->got_data()) {
+			return { CppHttp::Net::ResponseType::BAD_REQUEST, "User already in classroom", {} };
+		}
+		*sql << "INSERT INTO classroom_users (classroom_id, user_id) VALUES (:classroom_id, :user_id)", soci::use(classroom.id), soci::use(user.id);
 	}
-
-	*sql << "INSERT INTO classroom_users (classroom_id, user_id) VALUES (:classroom_id, :user_id)", soci::use(classroom.id), soci::use(user.id);
 
 	return { CppHttp::Net::ResponseType::OK, "User added to classroom", {} };
 }
@@ -164,14 +178,19 @@ returnType GetUserClassrooms(CppHttp::Net::Request req) {
 	std::string id = tokenPayload["id"];
 
 	User user;
-	*sql << "SELECT * FROM users WHERE id = :id", soci::use(id), soci::into(user);
+	{
+		std::lock_guard<std::mutex> lock(Database::dbMutex);
+		*sql << "SELECT * FROM users WHERE id = :id", soci::use(id), soci::into(user);
+	}
 
 	if (user.email.empty()) {
 		return { CppHttp::Net::ResponseType::NOT_FOUND, "User not found", {} };
 	}
 
 	std::vector<Classroom> classrooms;
+	Database::dbMutex.lock();
 	soci::rowset<Classroom> rs = (sql->prepare << "SELECT DISTINCT classrooms.* FROM classrooms LEFT JOIN classroom_users ON classrooms.id=classroom_users.classroom_id WHERE classroom_users.user_id=:user_id", soci::use(user.id));
+	Database::dbMutex.unlock();
 
 	std::move(rs.begin(), rs.end(), std::back_inserter(classrooms));
 
@@ -209,14 +228,20 @@ returnType GetClassroom(CppHttp::Net::Request req) {
 	std::string id = tokenPayload["id"];
 
 	User user;
-	*sql << "SELECT * FROM users WHERE id = :id", soci::use(id), soci::into(user);
+	{
+		std::lock_guard<std::mutex> lock(Database::dbMutex);
+		*sql << "SELECT * FROM users WHERE id = :id", soci::use(id), soci::into(user);
+	}
 
 	if (user.email.empty()) {
 		return { CppHttp::Net::ResponseType::NOT_FOUND, "User not found", {} };
 	}
 
 	Classroom classroom;
-	*sql << "SELECT DISTINCT classrooms.* FROM classrooms LEFT JOIN classroom_users ON classrooms.id=classroom_users.classroom_id WHERE classroom_users.user_id=:user_id AND classroom_users.classroom_id=:classroom_id LIMIT 1", soci::use(id), soci::use(req.m_info.parameters["id"]), soci::into(classroom);
+	{
+		std::lock_guard<std::mutex> lock(Database::dbMutex);
+		*sql << "SELECT DISTINCT classrooms.* FROM classrooms LEFT JOIN classroom_users ON classrooms.id=classroom_users.classroom_id WHERE classroom_users.user_id=:user_id AND classroom_users.classroom_id=:classroom_id LIMIT 1", soci::use(id), soci::use(req.m_info.parameters["id"]), soci::into(classroom);
+	}
 
 	if (classroom.name.empty()) {
 		return { CppHttp::Net::ResponseType::NOT_FOUND, "Classroom not found", {} };
@@ -250,7 +275,10 @@ returnType GetClassroomMembers(CppHttp::Net::Request req) {
 	std::string id = tokenPayload["id"];
 
 	User user;
-	*sql << "SELECT * FROM users WHERE id = :id", soci::use(id), soci::into(user);
+	{
+		std::lock_guard<std::mutex> lock(Database::dbMutex);
+		*sql << "SELECT * FROM users WHERE id = :id", soci::use(id), soci::into(user);
+	}
 
 	if (user.email.empty()) {
 		return { CppHttp::Net::ResponseType::NOT_FOUND, "User not found", {} };
@@ -262,7 +290,9 @@ returnType GetClassroomMembers(CppHttp::Net::Request req) {
 		return { CppHttp::Net::ResponseType::FORBIDDEN, "You do not have permission to access this resource", {} };
 	}
 
+	Database::dbMutex.lock();
 	soci::rowset<User> rs = (sql->prepare << "SELECT users.* FROM users LEFT JOIN classroom_users ON users.id=classroom_users.user_id WHERE classroom_users.classroom_id=:classroom_id", soci::use(req.m_info.parameters["id"]));
+	Database::dbMutex.unlock();
 
 	json response = json::array();
 
