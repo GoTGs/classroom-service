@@ -230,3 +230,53 @@ returnType GetClassroom(CppHttp::Net::Request req) {
 
 	return { CppHttp::Net::ResponseType::JSON, response.dump(4), {} };
 }
+
+returnType GetClassroomMembers(CppHttp::Net::Request req) {
+	soci::session* sql = Database::GetInstance()->GetSession();
+	std::string token = req.m_info.headers["Authorization"];
+
+	if (req.m_info.parameters["id"].empty()) {
+		return { CppHttp::Net::ResponseType::BAD_REQUEST, "Missing classroom id in path parameters", {} };
+	}
+
+	auto tokenJson = ValidateToken(token);
+
+	if (std::holds_alternative<TokenError>(tokenJson)) {
+		auto error = std::get<TokenError>(tokenJson);
+		return { error.type, error.message, {} };
+	}
+
+	auto tokenPayload = std::get<json>(tokenJson);
+	std::string id = tokenPayload["id"];
+
+	User user;
+	*sql << "SELECT * FROM users WHERE id = :id", soci::use(id), soci::into(user);
+
+	if (user.email.empty()) {
+		return { CppHttp::Net::ResponseType::NOT_FOUND, "User not found", {} };
+	}
+
+	std::transform(user.role.begin(), user.role.end(), user.role.begin(), ::toupper);
+
+	if (user.role != "ADMIN") {
+		return { CppHttp::Net::ResponseType::FORBIDDEN, "You do not have permission to access this resource", {} };
+	}
+
+	soci::rowset<User> rs = (sql->prepare << "SELECT users.* FROM users LEFT JOIN classroom_users ON users.id=classroom_users.user_id WHERE classroom_users.classroom_id=:classroom_id", soci::use(req.m_info.parameters["id"]));
+
+	json response = json::array();
+
+	for (auto& member : rs) {
+		json memberJson = {
+			{ "id", member.id },
+			{ "email", member.email },
+			{ "first_name", member.firstName },
+			{ "last_name", member.lastName },
+			{ "role", member.role }
+		};
+
+		response.push_back(memberJson);
+	}
+
+	return { CppHttp::Net::ResponseType::JSON, response.dump(4), {} };
+}

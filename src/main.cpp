@@ -18,6 +18,7 @@ int main() {
 	router.AddRoute("POST", "/classroom/{id}/add", AddUserToClassroom);
 	router.AddRoute("GET", "/classroom/user/get", GetUserClassrooms);
 	router.AddRoute("GET", "/classroom/{id}/get", GetClassroom);
+	router.AddRoute("GET", "/classroom/{id}/member/get/all", GetClassroomMembers);
 
 	server.Listen("0.0.0.0", 8002, std::thread::hardware_concurrency());
 
