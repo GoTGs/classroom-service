@@ -107,3 +107,5 @@ returnType GetUserClassrooms(CppHttp::Net::Request req);
 returnType GetClassroom(CppHttp::Net::Request req);
 
 returnType GetClassroomMembers(CppHttp::Net::Request req);
+
+returnType RemoveUserFromClassroom(CppHttp::Net::Request req);
