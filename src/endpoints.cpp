@@ -8,7 +8,9 @@ std::variant<TokenError, json> ValidateToken(std::string& token) {
 		return TokenError{ CppHttp::Net::ResponseType::NOT_AUTHORIZED, "Missing token" };
 	}
 
-	jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json> verifier = jwt::verify<jwt::traits::nlohmann_json>().allow_algorithm(jwt::algorithm::rs512{ "", std::getenv("RSASECRET"), "", ""}).with_issuer("auth0");
+	std::string rsaSecret = std::getenv("RSASECRET");
+
+	jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json> verifier = jwt::verify<jwt::traits::nlohmann_json>().allow_algorithm(jwt::algorithm::rs512{ "", rsaSecret, "", ""}).with_issuer("auth0");
 	auto decodedToken = jwt::decode<jwt::traits::nlohmann_json>(token);
 
 	std::error_code ec;
