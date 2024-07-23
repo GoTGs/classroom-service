@@ -18,7 +18,9 @@ int main() {
 	router.AddRoute("GET", "/classroom/user/get", GetUserClassrooms);
 	router.AddRoute("GET", "/classroom/{id}/get", GetClassroom);
 	router.AddRoute("GET", "/classroom/{id}/member/get/all", GetClassroomMembers);
+	router.AddRoute("PUT", "/classroom/{id}/rename", RenameClassroom);
 	router.AddRoute("DELETE", "/classroom/{classroom_id}/member/{member_id}/remove", RemoveUserFromClassroom);
+	router.AddRoute("DELETE", "/classroom/{id}/delete", DeleteClassroom);
 
 	server.Listen("0.0.0.0", 8002, std::thread::hardware_concurrency());
 

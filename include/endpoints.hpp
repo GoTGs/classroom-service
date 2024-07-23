@@ -108,4 +108,8 @@ returnType GetClassroom(CppHttp::Net::Request req);
 
 returnType GetClassroomMembers(CppHttp::Net::Request req);
 
+returnType RenameClassroom(CppHttp::Net::Request req);
+
 returnType RemoveUserFromClassroom(CppHttp::Net::Request req);
+
+returnType DeleteClassroom(CppHttp::Net::Request req);
