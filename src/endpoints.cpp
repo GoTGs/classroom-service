@@ -50,7 +50,7 @@ returnType CreateClassroom(CppHttp::Net::Request req) {
 
 	std::transform(user.role.begin(), user.role.end(), user.role.begin(), ::toupper);
 
-	if (user.role != "ADMIN") {
+	if (user.role != "ADMIN" && user.role != "TEACHER") {
 		return { CppHttp::Net::ResponseType::FORBIDDEN, "You do not have permission to access this resource", {} };
 	}
 
@@ -122,7 +122,7 @@ returnType AddUserToClassroom(CppHttp::Net::Request req) {
 
 	std::transform(user.role.begin(), user.role.end(), user.role.begin(), ::toupper);
 
-	if (user.role != "ADMIN" || classroom.ownerId != std::stoi(id)) {
+	if ((user.role != "ADMIN" && user.role != "TEACHER") || classroom.ownerId != std::stoi(id)) {
 		return { CppHttp::Net::ResponseType::FORBIDDEN, "You do not have permission to access this resource", {} };
 	}
 	
@@ -286,7 +286,7 @@ returnType GetClassroomMembers(CppHttp::Net::Request req) {
 
 	std::transform(user.role.begin(), user.role.end(), user.role.begin(), ::toupper);
 
-	if (user.role != "ADMIN") {
+	if (user.role != "ADMIN" && user.role != "TEACHER") {
 		return { CppHttp::Net::ResponseType::FORBIDDEN, "You do not have permission to access this resource", {} };
 	}
 
@@ -347,7 +347,7 @@ returnType RemoveUserFromClassroom(CppHttp::Net::Request req) {
 
 	std::transform(user.role.begin(), user.role.end(), user.role.begin(), ::toupper);
 
-	if (user.role != "ADMIN") {
+	if (user.role != "ADMIN" && user.role != "TEACHER") {
 		return { CppHttp::Net::ResponseType::FORBIDDEN, "You do not have permission to access this resource", {} };
 	}
 
